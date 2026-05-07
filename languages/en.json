@@ -7,6 +7,10 @@
       "empty": "No auras configured."
     },
     "settings": {
+      "refreshDuringMove": {
+        "name": "Refresh During Movement",
+        "hint": "If disabled, aura highlights will only refresh when a token stops moving or its settings are updated. This can improve performance."
+      },
       "name": {
         "name": "Aura Name"
       },

@@ -46,6 +46,20 @@ let highlightedFilterTargets = new Set();
 let pendingHighlightRefresh = null;
 const alphaShapeCache = new Map();
 
+const REFRESH_DURING_MOVE_SETTING = "refreshDuringMove";
+
+Hooks.once("init", () => {
+  game.settings.register(MODULE_ID, REFRESH_DURING_MOVE_SETTING, {
+    name: localize("settings.refreshDuringMove.name"),
+    hint: localize("settings.refreshDuringMove.hint"),
+    scope: "client",
+    config: true,
+    type: Boolean,
+    default: true,
+    onChange: scheduleAuraHighlightRefresh,
+  });
+});
+
 Hooks.on("renderTokenConfig", injectAurasTab);
 Hooks.on("renderPrototypeTokenConfig", injectAurasTab);
 Hooks.on("preUpdateToken", (_token, changes) =>
@@ -58,9 +72,20 @@ Hooks.on("canvasReady", scheduleAuraHighlightRefresh);
 Hooks.on("canvasTearDown", clearAuraHighlights);
 Hooks.on("controlToken", scheduleAuraHighlightRefresh);
 Hooks.on("updateToken", scheduleAuraHighlightRefresh);
-Hooks.on("moveToken", scheduleAuraHighlightRefresh);
+Hooks.on("moveToken", () => {
+  if (game.settings.get(MODULE_ID, REFRESH_DURING_MOVE_SETTING))
+    scheduleAuraHighlightRefresh();
+});
 Hooks.on("stopToken", scheduleAuraHighlightRefresh);
-Hooks.on("refreshToken", scheduleAuraHighlightRefresh);
+Hooks.on("refreshToken", (token) => {
+  const isAnimating = !!(token.animationContexts?.size || token._animation);
+  if (
+    game.settings.get(MODULE_ID, REFRESH_DURING_MOVE_SETTING) ||
+    !isAnimating
+  ) {
+    scheduleAuraHighlightRefresh();
+  }
+});
 Hooks.on("createToken", scheduleAuraHighlightRefresh);
 Hooks.on("deleteToken", scheduleAuraHighlightRefresh);
 
