@@ -1,3 +1,6 @@
+// Basic Aura Highlighting
+// A module for Foundry VTT that highlights tokens within specified aura ranges.
+
 const MODULE_ID = "basic_aura_highlighting";
 const AURAS_TAB = "basic-aura-highlighting-auras";
 const AURAS_FLAG_PATH = `flags.${MODULE_ID}.auras`;
@@ -7,6 +10,8 @@ const HIGHLIGHT_RING_SPACING = 5;
 const HIGHLIGHT_ALPHA_THRESHOLD = 0.2;
 const ALPHA_SAMPLE_SIZE = 48;
 const HIGHLIGHT_FILTER_MARKER = Symbol(MODULE_ID);
+
+// Shader for drawing an outline around the token's non-transparent pixels
 const ALPHA_OUTLINE_FRAGMENT_SHADER = `
 varying vec2 vTextureCoord;
 uniform sampler2D uSampler;
@@ -48,6 +53,7 @@ const alphaShapeCache = new Map();
 
 const REFRESH_DURING_MOVE_SETTING = "refreshDuringMove";
 
+// Initialization: Register settings and hooks
 Hooks.once("init", () => {
   game.settings.register(MODULE_ID, REFRESH_DURING_MOVE_SETTING, {
     name: localize("settings.refreshDuringMove.name"),
@@ -62,12 +68,16 @@ Hooks.once("init", () => {
 
 Hooks.on("renderTokenConfig", injectAurasTab);
 Hooks.on("renderPrototypeTokenConfig", injectAurasTab);
+
+// Data parsing hooks
 Hooks.on("preUpdateToken", (_token, changes) =>
   parseAurasInChanges(changes, AURAS_FLAG_PATH),
 );
 Hooks.on("preUpdateActor", (_actor, changes) =>
   parseAurasInChanges(changes, `prototypeToken.${AURAS_FLAG_PATH}`),
 );
+
+// Refresh hooks
 Hooks.on("canvasReady", scheduleAuraHighlightRefresh);
 Hooks.on("canvasTearDown", clearAuraHighlights);
 Hooks.on("controlToken", scheduleAuraHighlightRefresh);
@@ -89,6 +99,7 @@ Hooks.on("refreshToken", (token) => {
 Hooks.on("createToken", scheduleAuraHighlightRefresh);
 Hooks.on("deleteToken", scheduleAuraHighlightRefresh);
 
+// UI Injection: Add the "Auras" tab to Token Configuration
 function injectAurasTab(app, element) {
   const root = getRootElement(element);
   if (!root || root.querySelector(`[data-tab="${AURAS_TAB}"]`)) return;
@@ -167,6 +178,7 @@ function createAurasTabPanel(group, auras) {
   return panel;
 }
 
+// Event handling for the Auras configuration tab
 function activateAurasControls(root, group, panel) {
   const form = root.querySelector("form");
   const aurasTabButton = root.querySelector(
@@ -278,6 +290,7 @@ function renderAura(aura, index) {
   `;
 }
 
+// Data Management: Parsing and normalizing aura flags
 function readAuras(panel) {
   return Array.from(panel.querySelectorAll("[data-aura-id]")).map((item) => ({
     id: item.dataset.auraId,
@@ -351,6 +364,9 @@ function parseAuras(value) {
   }
 }
 
+// Rendering Logic: Highlights and calculations
+
+// Debounce highlight refreshes to avoid excessive calculations
 function scheduleAuraHighlightRefresh() {
   if (pendingHighlightRefresh !== null) return;
 
@@ -422,6 +438,9 @@ function clearHighlightContainer(container) {
   }
 }
 
+// Distance Calculation Logic
+
+// Find which tokens are within range of which auras
 function collectAuraHighlights(sourceTokens) {
   const highlights = new Map();
 
@@ -454,6 +473,7 @@ function isTokenInAura(source, target, aura) {
   return measureAuraDistance(source, target, aura) <= rangePixels;
 }
 
+// 3D Distance (Euclidean) from center to center
 function measureCenterDistance(source, target) {
   const dx = source.center.x - target.center.x;
   const dy = source.center.y - target.center.y;
@@ -461,6 +481,7 @@ function measureCenterDistance(source, target) {
   return Math.sqrt(dx * dx + dy * dy + dz * dz);
 }
 
+// Main distance entry point that handles edge vs center modes
 function measureAuraDistance(source, target, aura) {
   const sourcePoints = getMeasurementPoints(source, aura.from);
   const targetPoints = getMeasurementPoints(target, aura.to);
@@ -470,6 +491,7 @@ function measureAuraDistance(source, target, aura) {
   return measurePointSetDistance(sourcePoints, targetPoints, source, target);
 }
 
+// Fallback distance calculation using token bounds
 function measureBoundsDistance(source, target, aura) {
   const dz = getElevationOffset(source, target);
   let d2d = 0;
@@ -525,6 +547,7 @@ function getMeasurementPoints(token, mode) {
   return [];
 }
 
+// Find the minimum 3D distance between two sets of points
 function measurePointSetDistance(sourcePoints, targetPoints, source, target) {
   let minDistanceSquared = Infinity;
   for (const sourcePoint of sourcePoints) {
@@ -541,12 +564,16 @@ function measurePointSetDistance(sourcePoints, targetPoints, source, target) {
   return Math.sqrt(minDistanceSquared + dz * dz);
 }
 
+// Convert elevation difference to pixel distance
 function getElevationOffset(source, target) {
   const e1 = source.document?.elevation ?? 0;
   const e2 = target.document?.elevation ?? 0;
   return Math.abs(e1 - e2) * getPixelsPerSceneUnit();
 }
 
+// Alpha Sampling: Pixel-perfect edge detection
+
+// Get points along the visual edge of the token's texture
 function getTokenAlphaEdgePoints(token) {
   const displayObject = getTokenFilterTarget(token);
   const normalizedPoints = getTextureAlphaEdgePoints(displayObject);
@@ -556,6 +583,7 @@ function getTokenAlphaEdgePoints(token) {
   return normalizedPoints.map(mapper);
 }
 
+// Normalize texture-space points to canvas-space coordinates
 function getAlphaPointMapper(displayObject, token) {
   const localBounds = displayObject?.getLocalBounds?.();
   const transform = displayObject?.worldTransform;
@@ -567,6 +595,7 @@ function getAlphaPointMapper(displayObject, token) {
         x: localBounds.x + point.x * localBounds.width,
         y: localBounds.y + point.y * localBounds.height,
       };
+      // Map from local mesh space to world (screen) space, then back to canvas space
       const worldPoint = transform.apply(localPoint);
       return stageTransform.applyInverse(worldPoint);
     };
@@ -579,6 +608,7 @@ function getAlphaPointMapper(displayObject, token) {
   });
 }
 
+// Extract and cache points representing the non-transparent outline of a texture
 function getTextureAlphaEdgePoints(displayObject) {
   const texture = displayObject?.texture;
   const source = getTextureSource(texture);
@@ -649,6 +679,7 @@ function getAlphaShapeCacheKey(texture, frame) {
   return `${textureId}:${frame.x}:${frame.y}:${frame.width}:${frame.height}:${ALPHA_SAMPLE_SIZE}:${HIGHLIGHT_ALPHA_THRESHOLD}`;
 }
 
+// Draw the texture to a small canvas to scan its alpha channel
 function sampleTextureAlphaEdges(source, frame) {
   const canvas = document.createElement("canvas");
   canvas.width = ALPHA_SAMPLE_SIZE;
@@ -682,6 +713,7 @@ function sampleTextureAlphaEdges(source, frame) {
   }
 }
 
+// Scan image data for pixels that transition from opaque to transparent
 function getAlphaEdgeSamplePoints(imageData) {
   const alphaThreshold = HIGHLIGHT_ALPHA_THRESHOLD * 255;
   const { data, width, height } = imageData;
@@ -735,6 +767,8 @@ function isAlphaEdgePixel(opaquePixels, width, height, x, y) {
   return false;
 }
 
+// Filter Management: Drawing the highlights
+
 function highlightToken(token, highlights) {
   const target = getTokenFilterTarget(token);
   const filters = highlights
@@ -777,6 +811,7 @@ function removeHighlightFilters(target) {
   target.filters = remainingFilters.length > 0 ? remainingFilters : null;
 }
 
+// Determine which outline filter to use based on available system/module filters
 function createOutlineFilter(color) {
   const colorNumber = colorToNumber(color);
   const pixiOutlineFilter = globalThis.PIXI?.filters?.OutlineFilter;
@@ -845,6 +880,7 @@ function createAlphaOutlineFilter(color) {
   }
 }
 
+// Fallback graphics when filters are not supported
 function drawFallbackTokenHighlights(container, token, highlights) {
   highlights.forEach((aura, index) => {
     const bounds = token.bounds.clone().pad(index * HIGHLIGHT_RING_SPACING);
@@ -861,6 +897,8 @@ function drawFallbackTokenHighlights(container, token, highlights) {
     container.addChild(graphic);
   });
 }
+
+// Utility Functions
 
 function getPixelsPerSceneUnit() {
   const activeCanvas = globalThis.canvas;
