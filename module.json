@@ -1,0 +1,15 @@
+{
+  "id": "basicaurahighlighting",
+  "title": "Basic Aura Highlighting",
+  "version": "0.1.0",
+  "compatibility": {
+    "minimum": "13",
+    "verified": "13",
+    "maximum": "14"
+  },
+  "description": "<p>A small, system agnostic module that places a highlight around tokens in another token's aura. This aura can be measured from the center of the tokens or edge to edge. See the token or prototype token menus for configuration. This module also includes integration with pathfidner 2e, to make the auras toggleable in the actions tab of a character sheet.</p>",
+  "flags": {
+    "canUpload": true
+  },
+  "url": "https://codeberg.org/Grimsace/basic_aura_highlighting"
+}
