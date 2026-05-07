@@ -1,20 +1,27 @@
 {
   "BASIC_AURA_HIGHLIGHTING": {
     "tabs": {
-      "aura": "Aura",
-      "auraHint": "Aura controls will be added here."
+      "auras": "Auras",
+      "add": "Add aura",
+      "delete": "Delete aura",
+      "empty": "No auras configured."
     },
     "settings": {
-      "enabled": {
-        "name": "Enable Aura Highlight",
-        "hint": "Whether this token should highlight others within its aura."
+      "name": {
+        "name": "Aura Name"
       },
       "radius": {
         "name": "Aura Radius",
-        "hint": "The radius of the aura in grid units."
+        "hint": "The radius of the aura in scene distance units."
       },
       "color": {
         "name": "Highlight Color"
+      },
+      "measurement": {
+        "from": "From",
+        "to": "To",
+        "edge": "Edge",
+        "center": "Center"
       }
     }
   }

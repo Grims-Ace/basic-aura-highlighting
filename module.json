@@ -24,6 +24,7 @@
   },
   "url": "https://codeberg.org/Grimsace/basic_aura_highlighting",
   "esmodules": ["scripts/module.js"],
+  "styles": ["styles/module.css"],
   "languages": [
     {
       "lang": "en",
