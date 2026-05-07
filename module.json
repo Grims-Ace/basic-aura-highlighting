@@ -1,5 +1,5 @@
 {
-  "id": "basicaurahighlighting",
+  "id": "basic_aura_highlighting",
   "title": "Basic Aura Highlighting",
   "version": "0.1.0",
   "compatibility": {
@@ -7,9 +7,28 @@
     "verified": "13",
     "maximum": "14"
   },
-  "description": "<p>A small, system agnostic module that places a highlight around tokens in another token's aura. This aura can be measured from the center of the tokens or edge to edge. See the token or prototype token menus for configuration. This module also includes integration with pathfidner 2e, to make the auras toggleable in the actions tab of a character sheet.</p>",
+  "description": "<p>A module specifically for Pathfinder 2e that places a highlight around tokens in another token's aura. This aura can be measured from the center of the tokens or edge to edge. See the token or prototype token menus for configuration.</p>",
+  "relationships": {
+    "systems": [
+      {
+        "id": "pf2e",
+        "manifest": "https://github.com/foundryvtt/pf2e/releases/latest/download/system.json",
+        "compatibility": {
+          "minimum": "6.0.0"
+        }
+      }
+    ]
+  },
   "flags": {
     "canUpload": true
   },
-  "url": "https://codeberg.org/Grimsace/basic_aura_highlighting"
+  "url": "https://codeberg.org/Grimsace/basic_aura_highlighting",
+  "esmodules": ["scripts/module.js"],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "languages/en.json"
+    }
+  ]
 }

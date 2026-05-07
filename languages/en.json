@@ -1,0 +1,21 @@
+{
+  "BASIC_AURA_HIGHLIGHTING": {
+    "tabs": {
+      "aura": "Aura",
+      "auraHint": "Aura controls will be added here."
+    },
+    "settings": {
+      "enabled": {
+        "name": "Enable Aura Highlight",
+        "hint": "Whether this token should highlight others within its aura."
+      },
+      "radius": {
+        "name": "Aura Radius",
+        "hint": "The radius of the aura in grid units."
+      },
+      "color": {
+        "name": "Highlight Color"
+      }
+    }
+  }
+}
