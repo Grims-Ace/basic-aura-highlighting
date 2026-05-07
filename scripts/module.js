@@ -443,23 +443,66 @@ function clearHighlightContainer(container) {
 // Find which tokens are within range of which auras
 function collectAuraHighlights(sourceTokens) {
   const highlights = new Map();
+  const tokens = globalThis.canvas.tokens.placeables;
+  const pixelsPerUnit = getPixelsPerSceneUnit();
+
+  // Cache token-specific data for the duration of this refresh
+  const tokenCache = new Map();
 
   for (const source of sourceTokens) {
     const auras = getTokenAuras(source);
-    for (const target of globalThis.canvas.tokens.placeables) {
+    if (auras.length === 0) continue;
+
+    const sourceData = getCachedTokenData(source, tokenCache, pixelsPerUnit);
+
+    for (const target of tokens) {
       if (target === source || target.document.hidden) continue;
 
-      for (const aura of auras) {
-        if (!isTokenInAura(source, target, aura)) continue;
+      const targetData = getCachedTokenData(target, tokenCache, pixelsPerUnit);
+      const dz = Math.abs(sourceData.elevation - targetData.elevation);
+      const dz2 = dz * dz;
 
-        const targetHighlights = highlights.get(target.id) ?? [];
-        targetHighlights.push(aura);
-        highlights.set(target.id, targetHighlights);
+      for (const aura of auras) {
+        const rangePixels = aura.range * pixelsPerUnit;
+        const rangePixels2 = rangePixels * rangePixels;
+
+        // Broad phase: check if elevation difference alone exceeds range
+        if (dz2 > rangePixels2) continue;
+
+        if (
+          isTokenInAuraCached(
+            source,
+            target,
+            aura,
+            sourceData,
+            targetData,
+            dz2,
+            rangePixels2,
+          )
+        ) {
+          const targetHighlights = highlights.get(target.id) ?? [];
+          targetHighlights.push(aura);
+          highlights.set(target.id, targetHighlights);
+        }
       }
     }
   }
 
   return highlights;
+}
+
+function getCachedTokenData(token, cache, pixelsPerUnit) {
+  let data = cache.get(token.id);
+  if (data) return data;
+
+  data = {
+    center: token.center,
+    bounds: token.bounds,
+    elevation: (token.document?.elevation ?? 0) * pixelsPerUnit,
+    alphaPoints: null, // Lazy loaded
+  };
+  cache.set(token.id, data);
+  return data;
 }
 
 function getTokenAuras(token) {
@@ -468,100 +511,129 @@ function getTokenAuras(token) {
   );
 }
 
-function isTokenInAura(source, target, aura) {
-  const rangePixels = aura.range * getPixelsPerSceneUnit();
-  return measureAuraDistance(source, target, aura) <= rangePixels;
-}
+function isTokenInAuraCached(
+  source,
+  target,
+  aura,
+  sourceData,
+  targetData,
+  dz2,
+  rangePixels2,
+) {
+  // Broad phase: Bounding box check
+  const sourceBounds = sourceData.bounds;
+  const targetBounds = targetData.bounds;
+  const auraRange = aura.range * getPixelsPerSceneUnit();
 
-// 3D Distance (Euclidean) from center to center
-function measureCenterDistance(source, target) {
-  const dx = source.center.x - target.center.x;
-  const dy = source.center.y - target.center.y;
-  const dz = getElevationOffset(source, target);
-  return Math.sqrt(dx * dx + dy * dy + dz * dz);
-}
-
-// Main distance entry point that handles edge vs center modes
-function measureAuraDistance(source, target, aura) {
-  const sourcePoints = getMeasurementPoints(source, aura.from);
-  const targetPoints = getMeasurementPoints(target, aura.to);
-  if (sourcePoints.length === 0 || targetPoints.length === 0)
-    return measureBoundsDistance(source, target, aura);
-
-  return measurePointSetDistance(sourcePoints, targetPoints, source, target);
-}
-
-// Fallback distance calculation using token bounds
-function measureBoundsDistance(source, target, aura) {
-  const dz = getElevationOffset(source, target);
-  let d2d = 0;
-  if (aura.from === "center" && aura.to === "center")
-    return measureCenterDistance(source, target);
-  if (aura.from === "center")
-    d2d = measurePointToBoundsDistance(source.center, target.bounds);
-  else if (aura.to === "center")
-    d2d = measurePointToBoundsDistance(target.center, source.bounds);
-  else d2d = measureBoundsEdgeDistance(source, target);
-
-  return Math.sqrt(d2d * d2d + dz * dz);
-}
-
-function measureBoundsEdgeDistance(source, target) {
-  const alphaDistance = measureAlphaEdgeDistance(source, target);
-  if (Number.isFinite(alphaDistance)) return alphaDistance;
-
-  const sourceBounds = source.bounds;
-  const targetBounds = target.bounds;
-  const dx = Math.max(
+  const dxBox = Math.max(
     sourceBounds.x - targetBounds.right,
     targetBounds.x - sourceBounds.right,
     0,
   );
-  const dy = Math.max(
+  const dyBox = Math.max(
     sourceBounds.y - targetBounds.bottom,
     targetBounds.y - sourceBounds.bottom,
     0,
   );
-  return Math.hypot(dx, dy);
+
+  if (dxBox * dxBox + dyBox * dyBox + dz2 > rangePixels2) return false;
+
+  const d2d2 = measureAuraDistanceSquared(
+    source,
+    target,
+    aura,
+    sourceData,
+    targetData,
+  );
+  return d2d2 + dz2 <= rangePixels2;
 }
 
-function measurePointToBoundsDistance(point, bounds) {
-  const dx = Math.max(bounds.x - point.x, point.x - bounds.right, 0);
-  const dy = Math.max(bounds.y - point.y, point.y - bounds.bottom, 0);
-  return Math.hypot(dx, dy);
+// Distance from center to center (squared)
+function measureCenterDistance2(sourceData, targetData) {
+  const dx = sourceData.center.x - targetData.center.x;
+  const dy = sourceData.center.y - targetData.center.y;
+  return dx * dx + dy * dy;
 }
 
-function measureAlphaEdgeDistance(source, target) {
-  const sourcePoints = getTokenAlphaEdgePoints(source);
-  const targetPoints = getTokenAlphaEdgePoints(target);
-  if (sourcePoints.length === 0 || targetPoints.length === 0) return Number.NaN;
-
-  return measurePointSetDistance(sourcePoints, targetPoints, source, target);
-}
-
-function getMeasurementPoints(token, mode) {
-  if (mode === "center") return [token.center];
-
-  const alphaPoints = getTokenAlphaEdgePoints(token);
-  if (alphaPoints.length > 0) return alphaPoints;
-  return [];
-}
-
-// Find the minimum 3D distance between two sets of points
-function measurePointSetDistance(sourcePoints, targetPoints, source, target) {
-  let minDistanceSquared = Infinity;
-  for (const sourcePoint of sourcePoints) {
-    for (const targetPoint of targetPoints) {
-      const dx = sourcePoint.x - targetPoint.x;
-      const dy = sourcePoint.y - targetPoint.y;
-      const distanceSquared = dx * dx + dy * dy;
-      if (distanceSquared < minDistanceSquared)
-        minDistanceSquared = distanceSquared;
-    }
+// Main distance entry point (squared)
+function measureAuraDistanceSquared(
+  source,
+  target,
+  aura,
+  sourceData,
+  targetData,
+) {
+  if (aura.from === "center" && aura.to === "center") {
+    return measureCenterDistance2(sourceData, targetData);
   }
 
-  const dz = getElevationOffset(source, target);
-  return Math.sqrt(minDistanceSquared + dz * dz);
+  const sourcePoints = getMeasurementPointsCached(
+    source,
+    aura.from,
+    sourceData,
+  );
+  const targetPoints = getMeasurementPointsCached(target, aura.to, targetData);
+
+  if (sourcePoints.length === 0 || targetPoints.length === 0) {
+    return measureBoundsDistance2(sourceData, targetData, aura);
+  }
+
+  return measurePointSetDistance2(sourcePoints, targetPoints);
+}
+
+// Fallback distance calculation using token bounds (squared)
+function measureBoundsDistance2(sourceData, targetData, aura) {
+  if (aura.from === "center")
+    return measurePointToBoundsDistance2(sourceData.center, targetData.bounds);
+  if (aura.to === "center")
+    return measurePointToBoundsDistance2(targetData.center, sourceData.bounds);
+
+  const dx = Math.max(
+    sourceData.bounds.x - targetData.bounds.right,
+    targetData.bounds.x - sourceData.bounds.right,
+    0,
+  );
+  const dy = Math.max(
+    sourceData.bounds.y - targetData.bounds.bottom,
+    targetData.bounds.y - sourceData.bounds.bottom,
+    0,
+  );
+  return dx * dx + dy * dy;
+}
+
+function measurePointToBoundsDistance2(point, bounds) {
+  const dx = Math.max(bounds.x - point.x, point.x - bounds.right, 0);
+  const dy = Math.max(bounds.y - point.y, point.y - bounds.bottom, 0);
+  return dx * dx + dy * dy;
+}
+
+function getMeasurementPointsCached(token, mode, tokenData) {
+  if (mode === "center") return [tokenData.center];
+
+  if (tokenData.alphaPoints === null) {
+    tokenData.alphaPoints = getTokenAlphaEdgePoints(token);
+  }
+  return tokenData.alphaPoints;
+}
+
+// Find the minimum distance squared between two sets of points
+function measurePointSetDistance2(sourcePoints, targetPoints) {
+  let minDistanceSquared = Infinity;
+  for (let i = 0, lenS = sourcePoints.length; i < lenS; i++) {
+    const sP = sourcePoints[i];
+    for (let j = 0, lenT = targetPoints.length; j < lenT; j++) {
+      const tP = targetPoints[j];
+      const dx = sP.x - tP.x;
+      const dy = sP.y - tP.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < minDistanceSquared) {
+        minDistanceSquared = d2;
+        // Optimization: Distance can't be less than 0
+        if (minDistanceSquared === 0) return 0;
+      }
+    }
+  }
+  return minDistanceSquared;
 }
 
 // Convert elevation difference to pixel distance
