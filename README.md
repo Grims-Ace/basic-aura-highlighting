@@ -1,3 +1,3 @@
-# basic_aura_highlighting
+# Basic Aura Highlighting
 
-A small, system agnostic module that places a highlight around tokens in another token's aura.
+A small, FoundryVTT system agnostic module that places a highlight around tokens in another token's aura.
