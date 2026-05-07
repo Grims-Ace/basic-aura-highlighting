@@ -23,6 +23,8 @@
     "canUpload": true
   },
   "url": "https://codeberg.org/Grimsace/basic_aura_highlighting",
+  "manifest": "https://codeberg.org/Grimsace/basic_aura_highlighting/raw/branch/main/module.json",
+  "download": "https://codeberg.org/Grimsace/basic_aura_highlighting/archive/main.zip",
   "esmodules": ["scripts/module.js"],
   "styles": ["styles/module.css"],
   "languages": [
