@@ -455,10 +455,10 @@ function isTokenInAura(source, target, aura) {
 }
 
 function measureCenterDistance(source, target) {
-  return Math.hypot(
-    source.center.x - target.center.x,
-    source.center.y - target.center.y,
-  );
+  const dx = source.center.x - target.center.x;
+  const dy = source.center.y - target.center.y;
+  const dz = getElevationOffset(source, target);
+  return Math.sqrt(dx * dx + dy * dy + dz * dz);
 }
 
 function measureAuraDistance(source, target, aura) {
@@ -467,17 +467,21 @@ function measureAuraDistance(source, target, aura) {
   if (sourcePoints.length === 0 || targetPoints.length === 0)
     return measureBoundsDistance(source, target, aura);
 
-  return measurePointSetDistance(sourcePoints, targetPoints);
+  return measurePointSetDistance(sourcePoints, targetPoints, source, target);
 }
 
 function measureBoundsDistance(source, target, aura) {
+  const dz = getElevationOffset(source, target);
+  let d2d = 0;
   if (aura.from === "center" && aura.to === "center")
     return measureCenterDistance(source, target);
   if (aura.from === "center")
-    return measurePointToBoundsDistance(source.center, target.bounds);
-  if (aura.to === "center")
-    return measurePointToBoundsDistance(target.center, source.bounds);
-  return measureBoundsEdgeDistance(source, target);
+    d2d = measurePointToBoundsDistance(source.center, target.bounds);
+  else if (aura.to === "center")
+    d2d = measurePointToBoundsDistance(target.center, source.bounds);
+  else d2d = measureBoundsEdgeDistance(source, target);
+
+  return Math.sqrt(d2d * d2d + dz * dz);
 }
 
 function measureBoundsEdgeDistance(source, target) {
@@ -510,7 +514,7 @@ function measureAlphaEdgeDistance(source, target) {
   const targetPoints = getTokenAlphaEdgePoints(target);
   if (sourcePoints.length === 0 || targetPoints.length === 0) return Number.NaN;
 
-  return measurePointSetDistance(sourcePoints, targetPoints);
+  return measurePointSetDistance(sourcePoints, targetPoints, source, target);
 }
 
 function getMeasurementPoints(token, mode) {
@@ -521,7 +525,7 @@ function getMeasurementPoints(token, mode) {
   return [];
 }
 
-function measurePointSetDistance(sourcePoints, targetPoints) {
+function measurePointSetDistance(sourcePoints, targetPoints, source, target) {
   let minDistanceSquared = Infinity;
   for (const sourcePoint of sourcePoints) {
     for (const targetPoint of targetPoints) {
@@ -533,7 +537,14 @@ function measurePointSetDistance(sourcePoints, targetPoints) {
     }
   }
 
-  return Math.sqrt(minDistanceSquared);
+  const dz = getElevationOffset(source, target);
+  return Math.sqrt(minDistanceSquared + dz * dz);
+}
+
+function getElevationOffset(source, target) {
+  const e1 = source.document?.elevation ?? 0;
+  const e2 = target.document?.elevation ?? 0;
+  return Math.abs(e1 - e2) * getPixelsPerSceneUnit();
 }
 
 function getTokenAlphaEdgePoints(token) {
