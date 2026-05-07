@@ -48,8 +48,12 @@ const alphaShapeCache = new Map();
 
 Hooks.on("renderTokenConfig", injectAurasTab);
 Hooks.on("renderPrototypeTokenConfig", injectAurasTab);
-Hooks.on("preUpdateToken", (_token, changes) => parseAurasInChanges(changes, AURAS_FLAG_PATH));
-Hooks.on("preUpdateActor", (_actor, changes) => parseAurasInChanges(changes, `prototypeToken.${AURAS_FLAG_PATH}`));
+Hooks.on("preUpdateToken", (_token, changes) =>
+  parseAurasInChanges(changes, AURAS_FLAG_PATH),
+);
+Hooks.on("preUpdateActor", (_actor, changes) =>
+  parseAurasInChanges(changes, `prototypeToken.${AURAS_FLAG_PATH}`),
+);
 Hooks.on("canvasReady", scheduleAuraHighlightRefresh);
 Hooks.on("canvasTearDown", clearAuraHighlights);
 Hooks.on("controlToken", scheduleAuraHighlightRefresh);
@@ -67,7 +71,9 @@ function injectAurasTab(app, element) {
   const tabsNav = findTabsNav(root);
   const existingTab = findExistingTab(root, tabsNav);
   if (!tabsNav || !existingTab) {
-    console.warn(`${MODULE_ID} | Could not find token config tabs to add Auras tab.`);
+    console.warn(
+      `${MODULE_ID} | Could not find token config tabs to add Auras tab.`,
+    );
     return;
   }
 
@@ -87,17 +93,22 @@ function getRootElement(element) {
 }
 
 function findTabsNav(root) {
-  return root.querySelector(`nav.tabs[data-group], .tabs[data-group], nav.tabs, .tabs`);
+  return root.querySelector(
+    `nav.tabs[data-group], .tabs[data-group], nav.tabs, .tabs`,
+  );
 }
 
 function findExistingTab(root, tabsNav) {
   const group = tabsNav?.dataset.group;
-  const selector = group ? `.tab[data-group="${group}"][data-tab]` : `.tab[data-tab]`;
+  const selector = group
+    ? `.tab[data-group="${group}"][data-tab]`
+    : `.tab[data-tab]`;
   return root.querySelector(selector) || root.querySelector(`.tab[data-tab]`);
 }
 
 function getSavedAuras(app) {
-  const document = app.document ?? app.object ?? app.token ?? app.actor?.prototypeToken;
+  const document =
+    app.document ?? app.object ?? app.token ?? app.actor?.prototypeToken;
   return normalizeAuras(parseAuras(document?.getFlag?.(MODULE_ID, "auras")));
 }
 
@@ -133,7 +144,9 @@ function createAurasTabPanel(group, auras) {
 
 function activateAurasControls(root, group, panel) {
   const form = root.querySelector("form");
-  const aurasTabButton = root.querySelector(`[data-tab="${AURAS_TAB}"][data-group="${group}"]`);
+  const aurasTabButton = root.querySelector(
+    `[data-tab="${AURAS_TAB}"][data-group="${group}"]`,
+  );
 
   aurasTabButton?.addEventListener("click", (event) => {
     event.preventDefault();
@@ -141,11 +154,13 @@ function activateAurasControls(root, group, panel) {
     activateAurasTab(root, group);
   });
 
-  panel.querySelector("[data-action='add-aura']")?.addEventListener("click", () => {
-    const auras = readAuras(panel);
-    auras.push(createDefaultAura(auras.length));
-    renderAuras(panel, auras);
-  });
+  panel
+    .querySelector("[data-action='add-aura']")
+    ?.addEventListener("click", () => {
+      const auras = readAuras(panel);
+      auras.push(createDefaultAura(auras.length));
+      renderAuras(panel, auras);
+    });
 
   panel.addEventListener("input", () => syncAurasField(panel));
   panel.addEventListener("change", () => syncAurasField(panel));
@@ -157,10 +172,15 @@ function activateAurasControls(root, group, panel) {
 
     const auraItem = deleteButton.closest("[data-aura-id]");
     const id = auraItem?.dataset.auraId;
-    renderAuras(panel, readAuras(panel).filter((aura) => aura.id !== id));
+    renderAuras(
+      panel,
+      readAuras(panel).filter((aura) => aura.id !== id),
+    );
   });
 
-  form?.addEventListener("submit", () => syncAurasField(panel), { capture: true });
+  form?.addEventListener("submit", () => syncAurasField(panel), {
+    capture: true,
+  });
 }
 
 function renderAuras(panel, auras) {
@@ -169,7 +189,9 @@ function renderAuras(panel, auras) {
   const empty = panel.querySelector("[data-empty]");
   if (!list || !empty) return;
 
-  list.innerHTML = normalizedAuras.map((aura, index) => renderAura(aura, index)).join("");
+  list.innerHTML = normalizedAuras
+    .map((aura, index) => renderAura(aura, index))
+    .join("");
   empty.hidden = normalizedAuras.length > 0;
   syncAurasField(panel);
 }
@@ -237,8 +259,12 @@ function readAuras(panel) {
     name: item.querySelector("[data-aura-field='name']")?.value?.trim() || "",
     range: Number(item.querySelector("[data-aura-field='range']")?.value) || 0,
     color: item.querySelector("[data-aura-field='color']")?.value || "#ff0000",
-    from: normalizeMeasurementMode(item.querySelector("[data-aura-field='from']")?.value),
-    to: normalizeMeasurementMode(item.querySelector("[data-aura-field='to']")?.value),
+    from: normalizeMeasurementMode(
+      item.querySelector("[data-aura-field='from']")?.value,
+    ),
+    to: normalizeMeasurementMode(
+      item.querySelector("[data-aura-field='to']")?.value,
+    ),
   }));
 }
 
@@ -315,12 +341,16 @@ function refreshAuraHighlights() {
 
   clearAuraHighlights();
 
-  const sourceTokens = activeCanvas.tokens.controlled.filter((token) => getTokenAuras(token).length > 0);
+  const sourceTokens = activeCanvas.tokens.controlled.filter(
+    (token) => getTokenAuras(token).length > 0,
+  );
   if (sourceTokens.length === 0) return;
 
   const highlights = collectAuraHighlights(sourceTokens);
   for (const [targetId, targetHighlights] of highlights) {
-    const target = activeCanvas.tokens.placeables.find((token) => token.id === targetId);
+    const target = activeCanvas.tokens.placeables.find(
+      (token) => token.id === targetId,
+    );
     if (!target) continue;
     highlightToken(target, targetHighlights);
   }
@@ -339,16 +369,18 @@ function clearAuraHighlights() {
 
   const activeCanvas = globalThis.canvas;
   const parent = activeCanvas?.interface ?? activeCanvas?.tokens;
-  const container = parent?.getChildByName?.(HIGHLIGHT_CONTAINER_NAME)
-    ?? parent?.children?.find((child) => child.name === HIGHLIGHT_CONTAINER_NAME);
+  const container =
+    parent?.getChildByName?.(HIGHLIGHT_CONTAINER_NAME) ??
+    parent?.children?.find((child) => child.name === HIGHLIGHT_CONTAINER_NAME);
   if (container) clearHighlightContainer(container);
 }
 
 function getHighlightContainer() {
   const activeCanvas = globalThis.canvas;
   const parent = activeCanvas.interface ?? activeCanvas.tokens;
-  let container = parent.getChildByName?.(HIGHLIGHT_CONTAINER_NAME)
-    ?? parent.children?.find((child) => child.name === HIGHLIGHT_CONTAINER_NAME);
+  let container =
+    parent.getChildByName?.(HIGHLIGHT_CONTAINER_NAME) ??
+    parent.children?.find((child) => child.name === HIGHLIGHT_CONTAINER_NAME);
   if (container) return container;
 
   container = new PIXI.Container();
@@ -387,7 +419,9 @@ function collectAuraHighlights(sourceTokens) {
 }
 
 function getTokenAuras(token) {
-  return normalizeAuras(parseAuras(token.document?.getFlag?.(MODULE_ID, "auras")));
+  return normalizeAuras(
+    parseAuras(token.document?.getFlag?.(MODULE_ID, "auras")),
+  );
 }
 
 function isTokenInAura(source, target, aura) {
@@ -396,21 +430,28 @@ function isTokenInAura(source, target, aura) {
 }
 
 function measureCenterDistance(source, target) {
-  return Math.hypot(source.center.x - target.center.x, source.center.y - target.center.y);
+  return Math.hypot(
+    source.center.x - target.center.x,
+    source.center.y - target.center.y,
+  );
 }
 
 function measureAuraDistance(source, target, aura) {
   const sourcePoints = getMeasurementPoints(source, aura.from);
   const targetPoints = getMeasurementPoints(target, aura.to);
-  if (sourcePoints.length === 0 || targetPoints.length === 0) return measureBoundsDistance(source, target, aura);
+  if (sourcePoints.length === 0 || targetPoints.length === 0)
+    return measureBoundsDistance(source, target, aura);
 
   return measurePointSetDistance(sourcePoints, targetPoints);
 }
 
 function measureBoundsDistance(source, target, aura) {
-  if (aura.from === "center" && aura.to === "center") return measureCenterDistance(source, target);
-  if (aura.from === "center") return measurePointToBoundsDistance(source.center, target.bounds);
-  if (aura.to === "center") return measurePointToBoundsDistance(target.center, source.bounds);
+  if (aura.from === "center" && aura.to === "center")
+    return measureCenterDistance(source, target);
+  if (aura.from === "center")
+    return measurePointToBoundsDistance(source.center, target.bounds);
+  if (aura.to === "center")
+    return measurePointToBoundsDistance(target.center, source.bounds);
   return measureBoundsEdgeDistance(source, target);
 }
 
@@ -420,8 +461,16 @@ function measureBoundsEdgeDistance(source, target) {
 
   const sourceBounds = source.bounds;
   const targetBounds = target.bounds;
-  const dx = Math.max(sourceBounds.x - targetBounds.right, targetBounds.x - sourceBounds.right, 0);
-  const dy = Math.max(sourceBounds.y - targetBounds.bottom, targetBounds.y - sourceBounds.bottom, 0);
+  const dx = Math.max(
+    sourceBounds.x - targetBounds.right,
+    targetBounds.x - sourceBounds.right,
+    0,
+  );
+  const dy = Math.max(
+    sourceBounds.y - targetBounds.bottom,
+    targetBounds.y - sourceBounds.bottom,
+    0,
+  );
   return Math.hypot(dx, dy);
 }
 
@@ -453,8 +502,9 @@ function measurePointSetDistance(sourcePoints, targetPoints) {
     for (const targetPoint of targetPoints) {
       const dx = sourcePoint.x - targetPoint.x;
       const dy = sourcePoint.y - targetPoint.y;
-      const distanceSquared = (dx * dx) + (dy * dy);
-      if (distanceSquared < minDistanceSquared) minDistanceSquared = distanceSquared;
+      const distanceSquared = dx * dx + dy * dy;
+      if (distanceSquared < minDistanceSquared)
+        minDistanceSquared = distanceSquared;
     }
   }
 
@@ -473,17 +523,23 @@ function getTokenAlphaEdgePoints(token) {
 function getAlphaPointMapper(displayObject, token) {
   const localBounds = displayObject?.getLocalBounds?.();
   const transform = displayObject?.worldTransform;
-  if (localBounds && transform?.apply) {
-    return (point) => transform.apply(new PIXI.Point(
-      localBounds.x + (point.x * localBounds.width),
-      localBounds.y + (point.y * localBounds.height),
-    ));
+  const stageTransform = globalThis.canvas?.stage?.worldTransform;
+
+  if (localBounds && transform?.apply && stageTransform?.applyInverse) {
+    return (point) => {
+      const localPoint = {
+        x: localBounds.x + point.x * localBounds.width,
+        y: localBounds.y + point.y * localBounds.height,
+      };
+      const worldPoint = transform.apply(localPoint);
+      return stageTransform.applyInverse(worldPoint);
+    };
   }
 
   const bounds = token.bounds;
   return (point) => ({
-    x: bounds.x + (point.x * bounds.width),
-    y: bounds.y + (point.y * bounds.height),
+    x: bounds.x + point.x * bounds.width,
+    y: bounds.y + point.y * bounds.height,
   });
 }
 
@@ -502,11 +558,12 @@ function getTextureAlphaEdgePoints(displayObject) {
 }
 
 function getTextureSource(texture) {
-  const source = texture?.source?.resource?.source
-    ?? texture?.source?.resource
-    ?? texture?.baseTexture?.resource?.source
-    ?? texture?.baseTexture?.resource
-    ?? null;
+  const source =
+    texture?.source?.resource?.source ??
+    texture?.source?.resource ??
+    texture?.baseTexture?.resource?.source ??
+    texture?.baseTexture?.resource ??
+    null;
 
   return isCanvasImageSource(source) ? source : null;
 }
@@ -525,8 +582,18 @@ function isCanvasImageSource(source) {
 
 function getTextureFrame(texture, source) {
   const frame = texture.frame ?? texture._frame;
-  const width = frame?.width ?? texture.width ?? source.videoWidth ?? source.naturalWidth ?? source.width;
-  const height = frame?.height ?? texture.height ?? source.videoHeight ?? source.naturalHeight ?? source.height;
+  const width =
+    frame?.width ??
+    texture.width ??
+    source.videoWidth ??
+    source.naturalWidth ??
+    source.width;
+  const height =
+    frame?.height ??
+    texture.height ??
+    source.videoHeight ??
+    source.naturalHeight ??
+    source.height;
   return {
     x: frame?.x ?? 0,
     y: frame?.y ?? 0,
@@ -536,12 +603,13 @@ function getTextureFrame(texture, source) {
 }
 
 function getAlphaShapeCacheKey(texture, frame) {
-  const textureId = texture.cacheId
-    ?? texture.source?.uid
-    ?? texture.baseTexture?.uid
-    ?? texture.baseTexture?.cacheId
-    ?? texture.uid
-    ?? "texture";
+  const textureId =
+    texture.cacheId ??
+    texture.source?.uid ??
+    texture.baseTexture?.uid ??
+    texture.baseTexture?.cacheId ??
+    texture.uid ??
+    "texture";
   return `${textureId}:${frame.x}:${frame.y}:${frame.width}:${frame.height}:${ALPHA_SAMPLE_SIZE}:${HIGHLIGHT_ALPHA_THRESHOLD}`;
 }
 
@@ -555,10 +623,25 @@ function sampleTextureAlphaEdges(source, frame) {
 
   try {
     context.clearRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(source, frame.x, frame.y, frame.width, frame.height, 0, 0, canvas.width, canvas.height);
-    return getAlphaEdgeSamplePoints(context.getImageData(0, 0, canvas.width, canvas.height));
+    context.drawImage(
+      source,
+      frame.x,
+      frame.y,
+      frame.width,
+      frame.height,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+    return getAlphaEdgeSamplePoints(
+      context.getImageData(0, 0, canvas.width, canvas.height),
+    );
   } catch (error) {
-    console.warn(`${MODULE_ID} | Could not sample token texture alpha for aura distance. Falling back to token bounds.`, error);
+    console.warn(
+      `${MODULE_ID} | Could not sample token texture alpha for aura distance. Falling back to token bounds.`,
+      error,
+    );
     return [];
   }
 }
@@ -572,14 +655,18 @@ function getAlphaEdgeSamplePoints(imageData) {
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const index = y * width + x;
-      opaquePixels[index] = data[(index * 4) + 3] >= alphaThreshold ? 1 : 0;
+      opaquePixels[index] = data[index * 4 + 3] >= alphaThreshold ? 1 : 0;
     }
   }
 
   for (let y = 0; y < height; y += 1) {
     for (let x = 0; x < width; x += 1) {
       const index = y * width + x;
-      if (!opaquePixels[index] || !isAlphaEdgePixel(opaquePixels, width, height, x, y)) continue;
+      if (
+        !opaquePixels[index] ||
+        !isAlphaEdgePixel(opaquePixels, width, height, x, y)
+      )
+        continue;
 
       points.push({
         x: (x + 0.5) / width,
@@ -598,8 +685,14 @@ function isAlphaEdgePixel(opaquePixels, width, height, x, y) {
 
       const neighborX = x + dx;
       const neighborY = y + dy;
-      if (neighborX < 0 || neighborY < 0 || neighborX >= width || neighborY >= height) return true;
-      if (!opaquePixels[(neighborY * width) + neighborX]) return true;
+      if (
+        neighborX < 0 ||
+        neighborY < 0 ||
+        neighborX >= width ||
+        neighborY >= height
+      )
+        return true;
+      if (!opaquePixels[neighborY * width + neighborX]) return true;
     }
   }
 
@@ -608,7 +701,9 @@ function isAlphaEdgePixel(opaquePixels, width, height, x, y) {
 
 function highlightToken(token, highlights) {
   const target = getTokenFilterTarget(token);
-  const filters = highlights.map((aura) => createOutlineFilter(aura.color)).filter(Boolean);
+  const filters = highlights
+    .map((aura) => createOutlineFilter(aura.color))
+    .filter(Boolean);
 
   if (target && filters.length > 0) {
     applyHighlightFilters(target, filters);
@@ -619,10 +714,12 @@ function highlightToken(token, highlights) {
 }
 
 function getTokenFilterTarget(token) {
-  return token.mesh
-    ?? token.icon
-    ?? token.children?.find((child) => child.texture)
-    ?? null;
+  return (
+    token.mesh ??
+    token.icon ??
+    token.children?.find((child) => child.texture) ??
+    null
+  );
 }
 
 function applyHighlightFilters(target, filters) {
@@ -638,17 +735,21 @@ function applyHighlightFilters(target, filters) {
 
 function removeHighlightFilters(target) {
   const filters = target.filters ?? [];
-  const remainingFilters = filters.filter((filter) => !filter?.[HIGHLIGHT_FILTER_MARKER]);
+  const remainingFilters = filters.filter(
+    (filter) => !filter?.[HIGHLIGHT_FILTER_MARKER],
+  );
   target.filters = remainingFilters.length > 0 ? remainingFilters : null;
 }
 
 function createOutlineFilter(color) {
   const colorNumber = colorToNumber(color);
   const pixiOutlineFilter = globalThis.PIXI?.filters?.OutlineFilter;
-  if (pixiOutlineFilter) return new pixiOutlineFilter(HIGHLIGHT_LINE_WIDTH, colorNumber, 0.2);
+  if (pixiOutlineFilter)
+    return new pixiOutlineFilter(HIGHLIGHT_LINE_WIDTH, colorNumber, 0.2);
 
-  const outlineOverlayFilter = globalThis.OutlineOverlayFilter
-    ?? globalThis.foundry?.canvas?.rendering?.filters?.OutlineOverlayFilter;
+  const outlineOverlayFilter =
+    globalThis.OutlineOverlayFilter ??
+    globalThis.foundry?.canvas?.rendering?.filters?.OutlineOverlayFilter;
   if (outlineOverlayFilter?.create) {
     const filter = outlineOverlayFilter.create({
       outlineColor: colorToRgbArray(colorNumber),
@@ -665,8 +766,9 @@ function createOutlineFilter(color) {
   const alphaOutlineFilter = createAlphaOutlineFilter(colorNumber);
   if (alphaOutlineFilter) return alphaOutlineFilter;
 
-  const glowOverlayFilter = globalThis.GlowOverlayFilter
-    ?? globalThis.foundry?.canvas?.rendering?.filters?.GlowOverlayFilter;
+  const glowOverlayFilter =
+    globalThis.GlowOverlayFilter ??
+    globalThis.foundry?.canvas?.rendering?.filters?.GlowOverlayFilter;
   if (glowOverlayFilter?.create) {
     const filter = glowOverlayFilter.create({
       glowColor: colorToRgbArray(colorNumber),
@@ -689,11 +791,17 @@ function createAlphaOutlineFilter(color) {
     thickness: HIGHLIGHT_LINE_WIDTH,
     alphaThreshold: HIGHLIGHT_ALPHA_THRESHOLD,
   };
-  const baseFilter = globalThis.foundry?.canvas?.rendering?.filters?.AbstractBaseFilter ?? globalThis.PIXI?.Filter;
+  const baseFilter =
+    globalThis.foundry?.canvas?.rendering?.filters?.AbstractBaseFilter ??
+    globalThis.PIXI?.Filter;
   if (!baseFilter) return null;
 
   try {
-    const filter = new baseFilter(undefined, ALPHA_OUTLINE_FRAGMENT_SHADER, uniforms);
+    const filter = new baseFilter(
+      undefined,
+      ALPHA_OUTLINE_FRAGMENT_SHADER,
+      uniforms,
+    );
     filter.padding = HIGHLIGHT_LINE_WIDTH;
     return filter;
   } catch (_error) {
@@ -707,15 +815,27 @@ function drawFallbackTokenHighlights(container, token, highlights) {
     const graphic = new PIXI.Graphics();
 
     graphic.lineStyle(HIGHLIGHT_LINE_WIDTH, colorToNumber(aura.color), 0.9);
-    graphic.drawRoundedRect(bounds.x, bounds.y, bounds.width, bounds.height, 6 + (index * 2));
+    graphic.drawRoundedRect(
+      bounds.x,
+      bounds.y,
+      bounds.width,
+      bounds.height,
+      6 + index * 2,
+    );
     container.addChild(graphic);
   });
 }
 
 function getPixelsPerSceneUnit() {
   const activeCanvas = globalThis.canvas;
-  const gridSize = activeCanvas.grid?.size ?? activeCanvas.dimensions?.size ?? 100;
-  const gridDistance = Number(activeCanvas.scene?.grid?.distance ?? activeCanvas.dimensions?.distance ?? 1) || 1;
+  const gridSize =
+    activeCanvas.grid?.size ?? activeCanvas.dimensions?.size ?? 100;
+  const gridDistance =
+    Number(
+      activeCanvas.scene?.grid?.distance ??
+        activeCanvas.dimensions?.distance ??
+        1,
+    ) || 1;
   return gridSize / gridDistance;
 }
 
@@ -735,11 +855,15 @@ function colorToRgbArray(color) {
 }
 
 function activateAurasTab(root, group) {
-  for (const tab of root.querySelectorAll(`.tab[data-group="${group}"], .tab[data-tab]`)) {
+  for (const tab of root.querySelectorAll(
+    `.tab[data-group="${group}"], .tab[data-tab]`,
+  )) {
     tab.classList.toggle("active", tab.dataset.tab === AURAS_TAB);
   }
 
-  for (const item of root.querySelectorAll(`[data-group="${group}"][data-tab], .tabs [data-tab]`)) {
+  for (const item of root.querySelectorAll(
+    `[data-group="${group}"][data-tab], .tabs [data-tab]`,
+  )) {
     item.classList.toggle("active", item.dataset.tab === AURAS_TAB);
   }
 }
@@ -749,15 +873,22 @@ function localize(path) {
 }
 
 function randomId() {
-  return globalThis.foundry?.utils?.randomID?.() ?? Math.random().toString(36).slice(2);
+  return (
+    globalThis.foundry?.utils?.randomID?.() ??
+    Math.random().toString(36).slice(2)
+  );
 }
 
 function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "\"": "&quot;",
-    "'": "&#39;",
-  }[character]));
+  return String(value).replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[character],
+  );
 }
