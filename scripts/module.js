@@ -5,11 +5,11 @@ const MODULE_ID = "basic_aura_highlighting";
 const AURAS_TAB = "basic-aura-highlighting-auras";
 const AURAS_FLAG_PATH = `flags.${MODULE_ID}.auras`;
 const HIGHLIGHT_CONTAINER_NAME = `${MODULE_ID}.highlights`;
-const HIGHLIGHT_LINE_WIDTH = 4;
 const HIGHLIGHT_RING_SPACING = 5;
 const HIGHLIGHT_ALPHA_THRESHOLD = 0.2;
 const ALPHA_SAMPLE_SIZE = 48;
 const HIGHLIGHT_FILTER_MARKER = Symbol(MODULE_ID);
+const THICKNESS_SETTING = "thickness";
 
 // Shader for drawing an outline around the token's non-transparent pixels
 const ALPHA_OUTLINE_FRAGMENT_SHADER = `
@@ -62,6 +62,21 @@ Hooks.once("init", () => {
     config: true,
     type: Boolean,
     default: true,
+    onChange: scheduleAuraHighlightRefresh,
+  });
+
+  game.settings.register(MODULE_ID, THICKNESS_SETTING, {
+    name: localize("settings.thickness.name"),
+    hint: localize("settings.thickness.hint"),
+    scope: "client",
+    config: true,
+    type: Number,
+    range: {
+      min: 1,
+      max: 100,
+      step: 1,
+    },
+    default: 4,
     onChange: scheduleAuraHighlightRefresh,
   });
 });
@@ -888,7 +903,7 @@ function createOutlineFilter(color) {
   const colorNumber = colorToNumber(color);
   const pixiOutlineFilter = globalThis.PIXI?.filters?.OutlineFilter;
   if (pixiOutlineFilter)
-    return new pixiOutlineFilter(HIGHLIGHT_LINE_WIDTH, colorNumber, 0.2);
+    return new pixiOutlineFilter(getHighlightThickness(), colorNumber, 0.2);
 
   const outlineOverlayFilter =
     globalThis.OutlineOverlayFilter ??
@@ -896,7 +911,7 @@ function createOutlineFilter(color) {
   if (outlineOverlayFilter?.create) {
     const filter = outlineOverlayFilter.create({
       outlineColor: colorToRgbArray(colorNumber),
-      thickness: [HIGHLIGHT_LINE_WIDTH, HIGHLIGHT_LINE_WIDTH],
+      thickness: [getHighlightThickness(), getHighlightThickness()],
       alphaThreshold: HIGHLIGHT_ALPHA_THRESHOLD,
       knockout: false,
       wave: false,
@@ -915,7 +930,7 @@ function createOutlineFilter(color) {
   if (glowOverlayFilter?.create) {
     const filter = glowOverlayFilter.create({
       glowColor: colorToRgbArray(colorNumber),
-      distance: HIGHLIGHT_LINE_WIDTH,
+      distance: getHighlightThickness(),
       outerStrength: 3,
       innerStrength: 0,
       alpha: 1,
@@ -931,7 +946,7 @@ function createOutlineFilter(color) {
 function createAlphaOutlineFilter(color) {
   const uniforms = {
     outlineColor: colorToRgbArray(color),
-    thickness: HIGHLIGHT_LINE_WIDTH,
+    thickness: getHighlightThickness(),
     alphaThreshold: HIGHLIGHT_ALPHA_THRESHOLD,
   };
   const baseFilter =
@@ -945,7 +960,7 @@ function createAlphaOutlineFilter(color) {
       ALPHA_OUTLINE_FRAGMENT_SHADER,
       uniforms,
     );
-    filter.padding = HIGHLIGHT_LINE_WIDTH;
+    filter.padding = getHighlightThickness();
     return filter;
   } catch (_error) {
     return null;
@@ -958,7 +973,7 @@ function drawFallbackTokenHighlights(container, token, highlights) {
     const bounds = token.bounds.clone().pad(index * HIGHLIGHT_RING_SPACING);
     const graphic = new PIXI.Graphics();
 
-    graphic.lineStyle(HIGHLIGHT_LINE_WIDTH, colorToNumber(aura.color), 0.9);
+    graphic.lineStyle(getHighlightThickness(), colorToNumber(aura.color), 0.9);
     graphic.drawRoundedRect(
       bounds.x,
       bounds.y,
@@ -1012,6 +1027,10 @@ function activateAurasTab(root, group) {
   )) {
     item.classList.toggle("active", item.dataset.tab === AURAS_TAB);
   }
+}
+
+function getHighlightThickness() {
+  return game.settings.get(MODULE_ID, THICKNESS_SETTING) ?? 4;
 }
 
 function localize(path) {

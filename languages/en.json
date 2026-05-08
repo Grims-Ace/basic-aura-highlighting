@@ -11,6 +11,10 @@
         "name": "Refresh During Movement",
         "hint": "If disabled, aura highlights will only refresh when a token stops moving or its settings are updated. This can improve performance."
       },
+      "thickness": {
+        "name": "Highlight Thickness",
+        "hint": "The thickness of the aura highlights in pixels (1-100)."
+      },
       "name": {
         "name": "Aura Name"
       },
