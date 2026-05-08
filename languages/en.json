@@ -34,6 +34,9 @@
       "walls": {
         "name": "Restricted by Walls",
         "hint": "If enabled, the aura will be blocked by walls (Line of Sight). GM Only."
+      },
+      "enabled": {
+        "name": "Enabled"
       }
     }
   }

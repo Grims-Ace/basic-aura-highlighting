@@ -256,11 +256,18 @@ function renderAura(aura, index) {
   const fromLabel = localize("settings.measurement.from");
   const toLabel = localize("settings.measurement.to");
   const wallsLabel = localize("settings.walls.name");
+  const enabledLabel = localize("settings.enabled.name");
   const isGM = game.user.isGM;
 
   return `
     <fieldset class="basic-aura-highlighting__aura" data-aura-id="${id}">
       <legend>${escapeHtml(aura.name || defaultAuraName(index))}</legend>
+      <div class="form-group">
+        <label for="${id}-enabled">${enabledLabel}</label>
+        <div class="form-fields">
+          <input id="${id}-enabled" type="checkbox" ${aura.enabled ? "checked" : ""} data-aura-field="enabled">
+        </div>
+      </div>
       <div class="form-group">
         <label for="${id}-name">${nameLabel}</label>
         <div class="form-fields">
@@ -326,6 +333,7 @@ function readAuras(panel) {
       item.querySelector("[data-aura-field='to']")?.value,
     ),
     walls: !!item.querySelector("[data-aura-field='walls']")?.checked,
+    enabled: !!item.querySelector("[data-aura-field='enabled']")?.checked,
   }));
 }
 
@@ -344,6 +352,7 @@ function normalizeAura(aura = {}) {
     from: normalizeMeasurementMode(aura.from ?? legacyMeasurement),
     to: normalizeMeasurementMode(aura.to ?? legacyMeasurement),
     walls: aura.walls ?? true,
+    enabled: aura.enabled ?? true,
   };
 }
 
@@ -487,6 +496,8 @@ function collectAuraHighlights(sourceTokens) {
       const dz2 = dz * dz;
 
       for (const aura of auras) {
+        if (!aura.enabled) continue;
+
         const rangePixels = aura.range * pixelsPerUnit;
         const rangePixels2 = rangePixels * rangePixels;
 
