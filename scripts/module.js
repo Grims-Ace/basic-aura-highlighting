@@ -251,7 +251,7 @@ function renderAuras(panel, auras) {
 function renderAura(aura, index) {
   const id = escapeHtml(aura.id);
   const nameLabel = localize("settings.name.name");
-  const rangeLabel = localize("settings.radius.name");
+  const rangeLabel = `${localize("settings.radius.name")} (Scene Units)`;
   const colorLabel = localize("settings.color.name");
   const fromLabel = localize("settings.measurement.from");
   const toLabel = localize("settings.measurement.to");
@@ -272,7 +272,6 @@ function renderAura(aura, index) {
         <div class="form-fields">
           <input id="${id}-range" type="number" min="0" step="0.5" value="${aura.range}" data-aura-field="range">
         </div>
-        <p class="hint">${localize("settings.radius.hint")}</p>
       </div>
       <div class="form-group">
         <label for="${id}-color">${colorLabel}</label>
@@ -303,7 +302,6 @@ function renderAura(aura, index) {
         <div class="form-fields">
           <input id="${id}-walls" type="checkbox" ${aura.walls ? "checked" : ""} data-aura-field="walls" ${isGM ? "" : "disabled"}>
         </div>
-        <p class="hint">${localize("settings.walls.hint")}</p>
       </div>
       <div class="form-group">
         <button type="button" class="basic-aura-highlighting__delete" data-action="delete-aura">
