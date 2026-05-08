@@ -30,6 +30,10 @@
         "to": "To",
         "edge": "Edge",
         "center": "Center"
+      },
+      "walls": {
+        "name": "Restricted by Walls",
+        "hint": "If enabled, the aura will be blocked by walls (Line of Sight). GM Only."
       }
     }
   }

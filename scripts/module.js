@@ -255,6 +255,8 @@ function renderAura(aura, index) {
   const colorLabel = localize("settings.color.name");
   const fromLabel = localize("settings.measurement.from");
   const toLabel = localize("settings.measurement.to");
+  const wallsLabel = localize("settings.walls.name");
+  const isGM = game.user.isGM;
 
   return `
     <fieldset class="basic-aura-highlighting__aura" data-aura-id="${id}">
@@ -297,6 +299,13 @@ function renderAura(aura, index) {
         </div>
       </div>
       <div class="form-group">
+        <label for="${id}-walls">${wallsLabel}</label>
+        <div class="form-fields">
+          <input id="${id}-walls" type="checkbox" ${aura.walls ? "checked" : ""} data-aura-field="walls" ${isGM ? "" : "disabled"}>
+        </div>
+        <p class="hint">${localize("settings.walls.hint")}</p>
+      </div>
+      <div class="form-group">
         <button type="button" class="basic-aura-highlighting__delete" data-action="delete-aura">
           <i class="fa-solid fa-trash"></i> ${localize("tabs.delete")}
         </button>
@@ -318,6 +327,7 @@ function readAuras(panel) {
     to: normalizeMeasurementMode(
       item.querySelector("[data-aura-field='to']")?.value,
     ),
+    walls: !!item.querySelector("[data-aura-field='walls']")?.checked,
   }));
 }
 
@@ -335,6 +345,7 @@ function normalizeAura(aura = {}) {
     color: typeof aura.color === "string" ? aura.color : "#ff0000",
     from: normalizeMeasurementMode(aura.from ?? legacyMeasurement),
     to: normalizeMeasurementMode(aura.to ?? legacyMeasurement),
+    walls: aura.walls ?? true,
   };
 }
 
@@ -538,7 +549,6 @@ function isTokenInAuraCached(
   // Broad phase: Bounding box check
   const sourceBounds = sourceData.bounds;
   const targetBounds = targetData.bounds;
-  const auraRange = aura.range * getPixelsPerSceneUnit();
 
   const dxBox = Math.max(
     sourceBounds.x - targetBounds.right,
@@ -553,6 +563,7 @@ function isTokenInAuraCached(
 
   if (dxBox * dxBox + dyBox * dyBox + dz2 > rangePixels2) return false;
 
+  // Narrow phase: Distance calculation
   const d2d2 = measureAuraDistanceSquared(
     source,
     target,
@@ -560,7 +571,19 @@ function isTokenInAuraCached(
     sourceData,
     targetData,
   );
-  return d2d2 + dz2 <= rangePixels2;
+  if (d2d2 + dz2 > rangePixels2) return false;
+
+  // Wall restriction check
+  if (aura.walls) {
+    const isBlocked = CONFIG.Canvas.polygonBackends.sight.testCollision(
+      sourceData.center,
+      targetData.center,
+      { mode: "any", type: "sight" },
+    );
+    if (isBlocked) return false;
+  }
+
+  return true;
 }
 
 // Distance from center to center (squared)
