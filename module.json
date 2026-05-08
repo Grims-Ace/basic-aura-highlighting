@@ -7,18 +7,7 @@
     "verified": "13",
     "maximum": "14"
   },
-  "description": "<p>A module specifically for Pathfinder 2e that places a highlight around tokens in another token's aura. This aura can be measured from the center of the tokens or edge to edge. See the token or prototype token menus for configuration.</p>",
-  "relationships": {
-    "systems": [
-      {
-        "id": "pf2e",
-        "manifest": "https://github.com/foundryvtt/pf2e/releases/latest/download/system.json",
-        "compatibility": {
-          "minimum": "6.0.0"
-        }
-      }
-    ]
-  },
+  "description": "<p>A module that places a highlight around tokens in another token's aura. This aura can be measured from the center of the tokens or edge to edge. See the token or prototype token menus for configuration.</p>",
   "flags": {
     "canUpload": true
   },
