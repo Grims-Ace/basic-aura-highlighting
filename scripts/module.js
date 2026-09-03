@@ -1,5 +1,6 @@
-// Basic Aura Highlighting
-// A module for Foundry VTT that highlights tokens within specified ranges.
+// ============================================================================
+// Basic Aura Highlighting: highlights tokens inside another token's "aura".
+// ============================================================================
 
 const MODULE_ID = "basic_aura_highlighting";
 const AURAS_TAB = "basic-aura-highlighting-auras";
@@ -11,7 +12,7 @@ const ALPHA_SAMPLE_SIZE = 48;
 const HIGHLIGHT_FILTER_MARKER = Symbol(MODULE_ID);
 const THICKNESS_SETTING = "thickness";
 
-// Shader for drawing an outline around the token's non-transparent pixels
+// Draws an outline around the visible parts of a token.
 const ALPHA_OUTLINE_FRAGMENT_SHADER = `
 varying vec2 vTextureCoord;
 uniform sampler2D uSampler;
@@ -53,7 +54,9 @@ const alphaShapeCache = new Map();
 
 const REFRESH_DURING_MOVE_SETTING = "refreshDuringMove";
 
-// Initialization: Register settings and hooks
+// ============================================================================
+// Module setup: registers settings and connects the module to Foundry hooks.
+// ============================================================================
 Hooks.once("init", () => {
   game.settings.register(MODULE_ID, REFRESH_DURING_MOVE_SETTING, {
     name: localize("settings.refreshDuringMove.name"),
@@ -84,7 +87,7 @@ Hooks.once("init", () => {
 Hooks.on("renderTokenConfig", injectAurasTab);
 Hooks.on("renderPrototypeTokenConfig", injectAurasTab);
 
-// Data parsing hooks
+// Normalizes aura data before it is saved.
 Hooks.on("preUpdateToken", (_token, changes) =>
   parseAurasInChanges(changes, AURAS_FLAG_PATH),
 );
@@ -92,7 +95,7 @@ Hooks.on("preUpdateActor", (_actor, changes) =>
   parseAurasInChanges(changes, `prototypeToken.${AURAS_FLAG_PATH}`),
 );
 
-// Refresh hooks
+// Refreshes highlights when token or canvas state changes.
 Hooks.on("canvasReady", scheduleAuraHighlightRefresh);
 Hooks.on("canvasTearDown", clearAuraHighlights);
 Hooks.on("controlToken", scheduleAuraHighlightRefresh);
@@ -114,7 +117,9 @@ Hooks.on("refreshToken", (token) => {
 Hooks.on("createToken", scheduleAuraHighlightRefresh);
 Hooks.on("deleteToken", scheduleAuraHighlightRefresh);
 
-// UI Injection: Add the "Auras" tab to Token Configuration
+// ============================================================================
+// Aura configuration: adds and manages the Auras tab in token configuration.
+// ============================================================================
 function injectAurasTab(app, element) {
   const root = getRootElement(element);
   if (!root || root.querySelector(`[data-tab="${AURAS_TAB}"]`)) return;
@@ -193,7 +198,7 @@ function createAurasTabPanel(group, auras) {
   return panel;
 }
 
-// Event handling for the Auras configuration tab
+// Connects the controls in the Auras tab.
 function activateAurasControls(root, group, panel) {
   const form = root.querySelector("form");
   const aurasTabButton = root.querySelector(
@@ -319,7 +324,9 @@ function renderAura(aura, index) {
   `;
 }
 
-// Data Management: Parsing and normalizing aura flags
+// ============================================================================
+// Aura data: reads, validates, and normalizes aura settings.
+// ============================================================================
 function readAuras(panel) {
   return Array.from(panel.querySelectorAll("[data-aura-id]")).map((item) => ({
     id: item.dataset.auraId,
@@ -397,9 +404,11 @@ function parseAuras(value) {
   }
 }
 
-// Rendering Logic: Highlights and calculations
+// ============================================================================
+// Highlight rendering: finds affected tokens and updates their highlights.
+// ============================================================================
 
-// Debounce highlight refreshes to avoid excessive calculations
+// Delays refresh work until the current frame is complete.
 function scheduleAuraHighlightRefresh() {
   if (pendingHighlightRefresh !== null) return;
 
@@ -471,15 +480,17 @@ function clearHighlightContainer(container) {
   }
 }
 
-// Distance Calculation Logic
+// ============================================================================
+// Distance checks: uses broad and narrow checks to find tokens inside an aura.
+// ============================================================================
 
-// Find which tokens are within range of which auras
+// Finds all targets affected by the active source tokens.
 function collectAuraHighlights(sourceTokens) {
   const highlights = new Map();
   const tokens = globalThis.canvas.tokens.placeables;
   const pixelsPerUnit = getPixelsPerSceneUnit();
 
-  // Cache token-specific data for the duration of this refresh
+  // Reuses token data during this refresh.
   const tokenCache = new Map();
 
   for (const source of sourceTokens) {
@@ -501,7 +512,7 @@ function collectAuraHighlights(sourceTokens) {
         const rangePixels = aura.range * pixelsPerUnit;
         const rangePixels2 = rangePixels * rangePixels;
 
-        // Broad phase: check if elevation difference alone exceeds range
+        // Rejects targets whose elevation difference is already too large.
         if (dz2 > rangePixels2) continue;
 
         if (
@@ -555,24 +566,13 @@ function isTokenInAuraCached(
   dz2,
   rangePixels2,
 ) {
-  // Broad phase: Bounding box check
+  // Rejects targets whose bounds are too far apart.
   const sourceBounds = sourceData.bounds;
   const targetBounds = targetData.bounds;
+  if (measureBoundsGapSquared(sourceBounds, targetBounds) + dz2 > rangePixels2)
+    return false;
 
-  const dxBox = Math.max(
-    sourceBounds.x - targetBounds.right,
-    targetBounds.x - sourceBounds.right,
-    0,
-  );
-  const dyBox = Math.max(
-    sourceBounds.y - targetBounds.bottom,
-    targetBounds.y - sourceBounds.bottom,
-    0,
-  );
-
-  if (dxBox * dxBox + dyBox * dyBox + dz2 > rangePixels2) return false;
-
-  // Narrow phase: Distance calculation
+  // Measures the selected token points.
   const d2d2 = measureAuraDistanceSquared(
     source,
     target,
@@ -582,7 +582,7 @@ function isTokenInAuraCached(
   );
   if (d2d2 + dz2 > rangePixels2) return false;
 
-  // Wall restriction check
+  // Rejects targets hidden behind walls when wall checks are enabled.
   if (aura.walls) {
     const isBlocked = CONFIG.Canvas.polygonBackends.sight.testCollision(
       sourceData.center,
@@ -595,14 +595,14 @@ function isTokenInAuraCached(
   return true;
 }
 
-// Distance from center to center (squared)
+// Measures center-to-center distance.
 function measureCenterDistance2(sourceData, targetData) {
   const dx = sourceData.center.x - targetData.center.x;
   const dy = sourceData.center.y - targetData.center.y;
   return dx * dx + dy * dy;
 }
 
-// Main distance entry point (squared)
+// Selects the distance method for the aura settings.
 function measureAuraDistanceSquared(
   source,
   target,
@@ -628,21 +628,26 @@ function measureAuraDistanceSquared(
   return measurePointSetDistance2(sourcePoints, targetPoints);
 }
 
-// Fallback distance calculation using token bounds (squared)
+// Uses token bounds when texture points are not available.
 function measureBoundsDistance2(sourceData, targetData, aura) {
   if (aura.from === "center")
     return measurePointToBoundsDistance2(sourceData.center, targetData.bounds);
   if (aura.to === "center")
     return measurePointToBoundsDistance2(targetData.center, sourceData.bounds);
 
+  return measureBoundsGapSquared(sourceData.bounds, targetData.bounds);
+}
+
+// Measures the shortest squared distance between two rectangles.
+function measureBoundsGapSquared(sourceBounds, targetBounds) {
   const dx = Math.max(
-    sourceData.bounds.x - targetData.bounds.right,
-    targetData.bounds.x - sourceData.bounds.right,
+    sourceBounds.x - targetBounds.right,
+    targetBounds.x - sourceBounds.right,
     0,
   );
   const dy = Math.max(
-    sourceData.bounds.y - targetData.bounds.bottom,
-    targetData.bounds.y - sourceData.bounds.bottom,
+    sourceBounds.y - targetBounds.bottom,
+    targetBounds.y - sourceBounds.bottom,
     0,
   );
   return dx * dx + dy * dy;
@@ -663,7 +668,7 @@ function getMeasurementPointsCached(token, mode, tokenData) {
   return tokenData.alphaPoints;
 }
 
-// Find the minimum distance squared between two sets of points
+// Finds the smallest squared distance between two point sets.
 function measurePointSetDistance2(sourcePoints, targetPoints) {
   let minDistanceSquared = Infinity;
   for (let i = 0, lenS = sourcePoints.length; i < lenS; i++) {
@@ -675,7 +680,7 @@ function measurePointSetDistance2(sourcePoints, targetPoints) {
       const d2 = dx * dx + dy * dy;
       if (d2 < minDistanceSquared) {
         minDistanceSquared = d2;
-        // Optimization: Distance can't be less than 0
+        // Stops when the exact minimum distance is found.
         if (minDistanceSquared === 0) return 0;
       }
     }
@@ -683,16 +688,11 @@ function measurePointSetDistance2(sourcePoints, targetPoints) {
   return minDistanceSquared;
 }
 
-// Convert elevation difference to pixel distance
-function getElevationOffset(source, target) {
-  const e1 = source.document?.elevation ?? 0;
-  const e2 = target.document?.elevation ?? 0;
-  return Math.abs(e1 - e2) * getPixelsPerSceneUnit();
-}
+// ============================================================================
+// Alpha sampling: finds visible texture edges for accurate distance checks.
+// ============================================================================
 
-// Alpha Sampling: Pixel-perfect edge detection
-
-// Get points along the visual edge of the token's texture
+// Gets points along the visible edge of a token texture.
 function getTokenAlphaEdgePoints(token) {
   const displayObject = getTokenFilterTarget(token);
   const normalizedPoints = getTextureAlphaEdgePoints(displayObject);
@@ -702,7 +702,7 @@ function getTokenAlphaEdgePoints(token) {
   return normalizedPoints.map(mapper);
 }
 
-// Normalize texture-space points to canvas-space coordinates
+// Converts texture points to canvas coordinates.
 function getAlphaPointMapper(displayObject, token) {
   const localBounds = displayObject?.getLocalBounds?.();
   const transform = displayObject?.worldTransform;
@@ -714,7 +714,7 @@ function getAlphaPointMapper(displayObject, token) {
         x: localBounds.x + point.x * localBounds.width,
         y: localBounds.y + point.y * localBounds.height,
       };
-      // Map from local mesh space to world (screen) space, then back to canvas space
+      // Converts local mesh points to canvas points.
       const worldPoint = transform.apply(localPoint);
       return stageTransform.applyInverse(worldPoint);
     };
@@ -727,7 +727,7 @@ function getAlphaPointMapper(displayObject, token) {
   });
 }
 
-// Extract and cache points representing the non-transparent outline of a texture
+// Extracts and caches non-transparent texture edge points.
 function getTextureAlphaEdgePoints(displayObject) {
   const texture = displayObject?.texture;
   const source = getTextureSource(texture);
@@ -798,7 +798,7 @@ function getAlphaShapeCacheKey(texture, frame) {
   return `${textureId}:${frame.x}:${frame.y}:${frame.width}:${frame.height}:${ALPHA_SAMPLE_SIZE}:${HIGHLIGHT_ALPHA_THRESHOLD}`;
 }
 
-// Draw the texture to a small canvas to scan its alpha channel
+// Draws the texture to a small canvas so its alpha can be scanned.
 function sampleTextureAlphaEdges(source, frame) {
   const canvas = document.createElement("canvas");
   canvas.width = ALPHA_SAMPLE_SIZE;
@@ -832,7 +832,7 @@ function sampleTextureAlphaEdges(source, frame) {
   }
 }
 
-// Scan image data for pixels that transition from opaque to transparent
+// Finds opaque pixels next to transparent pixels.
 function getAlphaEdgeSamplePoints(imageData) {
   const alphaThreshold = HIGHLIGHT_ALPHA_THRESHOLD * 255;
   const { data, width, height } = imageData;
@@ -886,7 +886,9 @@ function isAlphaEdgePixel(opaquePixels, width, height, x, y) {
   return false;
 }
 
-// Filter Management: Drawing the highlights
+// ============================================================================
+// Highlight filters: applies an outline filter or a graphics fallback.
+// ============================================================================
 
 function highlightToken(token, highlights) {
   const target = getTokenFilterTarget(token);
@@ -930,7 +932,7 @@ function removeHighlightFilters(target) {
   target.filters = remainingFilters.length > 0 ? remainingFilters : null;
 }
 
-// Determine which outline filter to use based on available system/module filters
+// Uses the best outline filter available in the current Foundry version.
 function createOutlineFilter(color) {
   const colorNumber = colorToNumber(color);
   const pixiOutlineFilter = globalThis.PIXI?.filters?.OutlineFilter;
@@ -999,7 +1001,7 @@ function createAlphaOutlineFilter(color) {
   }
 }
 
-// Fallback graphics when filters are not supported
+// Draws a simple ring when no filter is available.
 function drawFallbackTokenHighlights(container, token, highlights) {
   highlights.forEach((aura, index) => {
     const bounds = token.bounds.clone().pad(index * HIGHLIGHT_RING_SPACING);
@@ -1017,7 +1019,9 @@ function drawFallbackTokenHighlights(container, token, highlights) {
   });
 }
 
-// Utility Functions
+// ============================================================================
+// Utility functions: provides shared conversion, localization, and DOM helpers.
+// ============================================================================
 
 function getPixelsPerSceneUnit() {
   const activeCanvas = globalThis.canvas;
