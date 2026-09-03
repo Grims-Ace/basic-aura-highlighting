@@ -1,5 +1,5 @@
 // Basic Aura Highlighting
-// A module for Foundry VTT that highlights tokens within specified aura ranges.
+// A module for Foundry VTT that highlights tokens within specified ranges.
 
 const MODULE_ID = "basic_aura_highlighting";
 const AURAS_TAB = "basic-aura-highlighting-auras";

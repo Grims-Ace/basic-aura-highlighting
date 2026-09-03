@@ -11,9 +11,9 @@
   "flags": {
     "canUpload": true
   },
-  "url": "https://codeberg.org/Grimsace/basic_aura_highlighting",
-  "manifest": "https://codeberg.org/Grimsace/basic_aura_highlighting/raw/branch/main/module.json",
-  "download": "https://codeberg.org/Grimsace/basic_aura_highlighting/archive/main.zip",
+  "url": "https://gitlab.com/Grimsace/basic-aura-highlighting-hJ0GE",
+  "manifest": "https://gitlab.com/Grimsace/basic-aura-highlighting-hJ0GE/-/raw/main/module.json?ref_type=heads",
+  "download": "https://gitlab.com/Grimsace/basic-aura-highlighting-hJ0GE/-/archive/main/basic-aura-highlighting-hJ0GE-main.zip?ref_type=heads",
   "esmodules": ["scripts/module.js"],
   "styles": ["styles/module.css"],
   "languages": [
