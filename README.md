@@ -41,6 +41,8 @@ To install the module automatically, in the foundry Admin Panel go to "add-on mo
 https://gitlab.com/Grimsace/basic-aura-highlighting-hJ0GE/-/raw/main/module.json?ref_type=heads
 ```
 
+Start Foundry VTT, enter your Game World, navigate to Game Settings -> Manage Modules, and enable Basic Aura Highlighting.
+
 ---
 ## Manual Installation
 
