@@ -9,6 +9,8 @@ const HIGHLIGHT_CONTAINER_NAME = `${MODULE_ID}.highlights`;
 const HIGHLIGHT_RING_SPACING = 5;
 const HIGHLIGHT_ALPHA_THRESHOLD = 0.2;
 const ALPHA_SAMPLE_SIZE = 48;
+const MAX_ALPHA_EDGE_POINTS = 36;
+const MAX_CACHE_ENTRIES = 128;
 const HIGHLIGHT_FILTER_MARKER = Symbol(MODULE_ID);
 const THICKNESS_SETTING = "thickness";
 const REFRESH_DURING_MOVE_SETTING = "refreshDuringMove";
@@ -56,6 +58,7 @@ void main() {
 let _highlightedFilterTargets = new Set();
 let _pendingHighlightRefresh = null;
 const _alphaShapeCache = new Map();
+const _targetFilterSignatures = new WeakMap();
 
 // =============================================================================
 // Public Accessors and Queries: Configuration getters and token queries.
@@ -132,6 +135,12 @@ function handleTokenRefresh(token) {
     }
 }
 
+// Clear all active highlights and evict cached texture geometry on canvas teardown.
+function handleCanvasTearDown() {
+    clearAuraHighlights();
+    _alphaShapeCache.clear();
+}
+
 // Register all lifecycle and canvas event hooks for the module.
 function registerHooks() {
     Hooks.once("init", registerSettings);
@@ -140,7 +149,7 @@ function registerHooks() {
     Hooks.on("preUpdateToken", (_token, changes) => parseAurasInChanges(changes, AURAS_FLAG_PATH));
     Hooks.on("preUpdateActor", (_actor, changes) => parseAurasInChanges(changes, `prototypeToken.${AURAS_FLAG_PATH}`));
     Hooks.on("canvasReady", scheduleAuraHighlightRefresh);
-    Hooks.on("canvasTearDown", clearAuraHighlights);
+    Hooks.on("canvasTearDown", handleCanvasTearDown);
     Hooks.on("controlToken", scheduleAuraHighlightRefresh);
     Hooks.on("updateToken", scheduleAuraHighlightRefresh);
     Hooks.on("moveToken", handleTokenMovement);
@@ -172,24 +181,41 @@ function refreshAuraHighlights() {
     const activeCanvas = globalThis.canvas;
     if (!activeCanvas?.ready || !activeCanvas.tokens) return;
 
-    // 1. Clear existing highlights
-    clearAuraHighlights();
+    // 1. Clear vector fallback overlays while retaining reusable filters
+    clearFallbackGraphics();
 
-    // 2. Identify active source tokens with configured auras
+    // 2. Identify active source tokens with enabled auras
     const sourceTokens = activeCanvas.tokens.controlled.filter(
-        (token) => getTokenAuras(token).length > 0,
+        (token) => getTokenAuras(token).some((aura) => aura.enabled),
     );
-    if (sourceTokens.length === 0) return;
 
-    // 3. Compute affected target highlights
-    const highlights = collectAuraHighlights(sourceTokens);
+    // 3. Collect active highlights per target token
+    const highlights = sourceTokens.length > 0 ? collectAuraHighlights(sourceTokens) : new Map();
 
-    // 4. Render highlight filters on target tokens
+    // 4. Synchronize highlight filters across active targets
+    syncTargetHighlights(highlights, activeCanvas);
+}
+
+// Synchronize highlight filters across all canvas targets.
+function syncTargetHighlights(highlights, activeCanvas) {
+    const nextTargets = new Set();
+
     for (const [targetId, targetHighlights] of highlights) {
         const target = activeCanvas.tokens.placeables.find((token) => token.id === targetId);
         if (!target) continue;
-        highlightToken(target, targetHighlights);
+
+        const displayTarget = highlightToken(target, targetHighlights);
+        if (displayTarget) nextTargets.add(displayTarget);
     }
+
+    // Remove filters from targets no longer inside any aura
+    for (const target of _highlightedFilterTargets) {
+        if (!nextTargets.has(target)) {
+            removeHighlightFilters(target);
+        }
+    }
+
+    _highlightedFilterTargets = nextTargets;
 }
 
 // Remove all active aura highlight filters and graphic overlays.
@@ -202,8 +228,13 @@ function clearAuraHighlights() {
     for (const target of _highlightedFilterTargets) {
         removeHighlightFilters(target);
     }
-    _highlightedFilterTargets = new Set();
+    _highlightedFilterTargets.clear();
 
+    clearFallbackGraphics();
+}
+
+// Destroy vector fallback graphics from the canvas highlight container.
+function clearFallbackGraphics() {
     const container = findHighlightContainer();
     if (container) clearHighlightContainer(container);
 }
@@ -211,73 +242,100 @@ function clearAuraHighlights() {
 // Collect all active highlights across all controlled source tokens.
 function collectAuraHighlights(sourceTokens) {
     const highlights = new Map();
-    const tokens = globalThis.canvas.tokens.placeables;
     const pixelsPerUnit = getPixelsPerSceneUnit();
     const tokenCache = new Map();
 
     for (const source of sourceTokens) {
-        evaluateSourceTokenAuras(source, tokens, tokenCache, pixelsPerUnit, highlights);
+        evaluateSourceTokenAuras(source, tokenCache, pixelsPerUnit, highlights);
     }
 
     return highlights;
 }
 
+// Query spatial partition to locate candidate targets within maximum aura range.
+function getCandidateTargets(source, maxRangePixels) {
+    const activeCanvas = globalThis.canvas;
+    const quadtree = activeCanvas?.tokens?.quadtree;
+
+    if (quadtree?.getObjects) {
+        const bounds = source.bounds;
+        const rect = new PIXI.Rectangle(
+            bounds.x - maxRangePixels,
+            bounds.y - maxRangePixels,
+            bounds.width + maxRangePixels * 2,
+            bounds.height + maxRangePixels * 2,
+        );
+        return quadtree.getObjects(rect);
+    }
+
+    return activeCanvas.tokens.placeables;
+}
+
 // Evaluate aura targets for a single source token.
-function evaluateSourceTokenAuras(source, tokens, tokenCache, pixelsPerUnit, highlights) {
-    const auras = getTokenAuras(source);
+function evaluateSourceTokenAuras(source, tokenCache, pixelsPerUnit, highlights) {
+    const auras = getTokenAuras(source).filter((aura) => aura.enabled);
     if (auras.length === 0) return;
 
+    // 0. Compute maximum aura range to prune distant targets rapidly
+    let maxRange = 0;
+    for (let i = 0; i < auras.length; i++) {
+        if (auras[i].range > maxRange) maxRange = auras[i].range;
+    }
+    const maxRangePixels = maxRange * pixelsPerUnit;
+    const maxRangePixels2 = maxRangePixels * maxRangePixels;
+
+    // 1. Query candidate targets within bounding distance
+    const candidates = getCandidateTargets(source, maxRangePixels);
     const sourceData = getCachedTokenData(source, tokenCache, pixelsPerUnit);
 
-    for (const target of tokens) {
+    // 2. Evaluate candidate target tokens
+    for (const target of candidates) {
         if (target === source || target.document.hidden) continue;
-        evaluateTargetAuras(source, target, auras, sourceData, tokenCache, pixelsPerUnit, highlights);
+        evaluateTargetCandidate(source, target, auras, sourceData, tokenCache, pixelsPerUnit, maxRangePixels2, highlights);
     }
 }
 
-// Check each aura on a source against a target token.
-function evaluateTargetAuras(source, target, auras, sourceData, tokenCache, pixelsPerUnit, highlights) {
+// Evaluate a candidate target token against all active source auras.
+function evaluateTargetCandidate(source, target, auras, sourceData, tokenCache, pixelsPerUnit, maxRangePixels2, highlights) {
     const targetData = getCachedTokenData(target, tokenCache, pixelsPerUnit);
     const dz = Math.abs(sourceData.elevation - targetData.elevation);
     const dz2 = dz * dz;
 
-    for (const aura of auras) {
-        if (!aura.enabled) continue;
-
-        const rangePixels = aura.range * pixelsPerUnit;
-        const rangePixels2 = rangePixels * rangePixels;
-        if (dz2 > rangePixels2) continue;
-
-        const isInAura = isTokenInAuraCached(
-            source,
-            target,
-            aura,
-            sourceData,
-            targetData,
-            dz2,
-            rangePixels2,
-        );
-        if (!isInAura) continue;
-
-        const targetHighlights = highlights.get(target.id) ?? [];
-        targetHighlights.push(aura);
-        highlights.set(target.id, targetHighlights);
+    // Reject target early if 3D bounding box distance exceeds maximum possible aura range
+    if (measureBoundsGapSquared(sourceData.bounds, targetData.bounds) + dz2 > maxRangePixels2) {
+        return;
     }
+
+    for (const aura of auras) {
+        evaluateSingleAura(source, target, aura, sourceData, targetData, dz2, pixelsPerUnit, highlights);
+    }
+}
+
+// Check an individual aura and record matching highlights.
+function evaluateSingleAura(source, target, aura, sourceData, targetData, dz2, pixelsPerUnit, highlights) {
+    const rangePixels = aura.range * pixelsPerUnit;
+    const rangePixels2 = rangePixels * rangePixels;
+    if (dz2 > rangePixels2) return;
+
+    const isInAura = isTokenInAuraCached(source, target, aura, sourceData, targetData, dz2, rangePixels2);
+    if (!isInAura) return;
+
+    const targetHighlights = highlights.get(target.id) ?? [];
+    targetHighlights.push(aura);
+    highlights.set(target.id, targetHighlights);
 }
 
 // Apply shader outline filters or vector graphic overlays to a highlighted token.
 function highlightToken(token, highlights) {
     const target = getTokenFilterTarget(token);
-    const filters = highlights
-        .map((aura) => createOutlineFilter(aura.color))
-        .filter(Boolean);
 
-    if (target && filters.length > 0) {
-        applyHighlightFilters(target, filters);
-        return;
+    if (target) {
+        applyHighlightFilters(target, highlights);
+        return target;
     }
 
     drawFallbackTokenHighlights(getHighlightContainer(), token, highlights);
+    return null;
 }
 
 // Inject the Auras management tab into the token configuration sheet.
@@ -602,6 +660,13 @@ function getTextureAlphaEdgePoints(displayObject) {
     if (_alphaShapeCache.has(cacheKey)) return _alphaShapeCache.get(cacheKey);
 
     const points = sampleTextureAlphaEdges(source, frame);
+
+    // Evict oldest cached geometry entries when limit is reached
+    if (_alphaShapeCache.size >= MAX_CACHE_ENTRIES) {
+        const oldestKey = _alphaShapeCache.keys().next().value;
+        _alphaShapeCache.delete(oldestKey);
+    }
+
     _alphaShapeCache.set(cacheKey, points);
     return points;
 }
@@ -707,7 +772,7 @@ function getAlphaEdgeSamplePoints(imageData) {
     const { data, width, height } = imageData;
     const totalPixels = width * height;
     const opaquePixels = new Uint8Array(totalPixels);
-    const points = [];
+    const rawPoints = [];
 
     // 0. Identify opaque pixel indices
     for (let i = 0; i < totalPixels; i++) {
@@ -722,14 +787,28 @@ function getAlphaEdgeSamplePoints(imageData) {
                 continue;
             }
 
-            points.push({
+            rawPoints.push({
                 x: (x + 0.5) / width,
                 y: (y + 0.5) / height,
             });
         }
     }
 
-    return points;
+    // 2. Subsample point cloud to keep distance comparisons within bounds
+    return decimateEdgePoints(rawPoints, MAX_ALPHA_EDGE_POINTS);
+}
+
+// Subsample a list of edge points evenly to a maximum target count.
+function decimateEdgePoints(points, maxCount) {
+    const len = points.length;
+    if (len <= maxCount) return points;
+
+    const step = len / maxCount;
+    const decimated = [];
+    for (let i = 0; i < maxCount; i++) {
+        decimated.push(points[Math.floor(i * step)]);
+    }
+    return decimated;
 }
 
 // Determine whether an opaque pixel is adjacent to any transparent pixel.
@@ -761,31 +840,45 @@ function getTokenFilterTarget(token) {
     return token.mesh ?? token.icon ?? token.children?.find((child) => child.texture) ?? null;
 }
 
-// Attach highlight filter instances to a token display object.
-function applyHighlightFilters(target, filters) {
+// Apply highlight filters to a display target while preserving existing unchanged filters.
+function applyHighlightFilters(target, highlights) {
+    const thickness = getHighlightThickness();
+    const colors = highlights.map((aura) => aura.color);
+    const signature = `${thickness}:${colors.join(",")}`;
+
+    // Skip filter reconstruction if existing filters match the required configuration
+    if (_targetFilterSignatures.get(target) === signature) return;
+
     removeHighlightFilters(target);
+
+    const filters = highlights
+        .map((aura) => createOutlineFilter(aura.color, thickness))
+        .filter(Boolean);
+
+    if (filters.length === 0) return;
 
     for (const filter of filters) {
         filter[HIGHLIGHT_FILTER_MARKER] = true;
     }
 
     target.filters = [...(target.filters ?? []), ...filters];
-    _highlightedFilterTargets.add(target);
+    _targetFilterSignatures.set(target, signature);
 }
 
 // Remove all module highlight filters from a display object.
 function removeHighlightFilters(target) {
+    _targetFilterSignatures.delete(target);
     const filters = target.filters ?? [];
     const remainingFilters = filters.filter((filter) => !filter?.[HIGHLIGHT_FILTER_MARKER]);
     target.filters = remainingFilters.length > 0 ? remainingFilters : null;
 }
 
 // Construct an outline filter compatible with the current Foundry engine version.
-function createOutlineFilter(color) {
+function createOutlineFilter(color, thickness = getHighlightThickness()) {
     const colorNumber = colorToNumber(color);
     const pixiOutlineFilter = globalThis.PIXI?.filters?.OutlineFilter;
     if (pixiOutlineFilter) {
-        return new pixiOutlineFilter(getHighlightThickness(), colorNumber, 0.2);
+        return new pixiOutlineFilter(thickness, colorNumber, 0.2);
     }
 
     const outlineOverlayFilter =
@@ -794,7 +887,7 @@ function createOutlineFilter(color) {
     if (outlineOverlayFilter?.create) {
         const filter = outlineOverlayFilter.create({
             outlineColor: colorToRgbArray(colorNumber),
-            thickness: [getHighlightThickness(), getHighlightThickness()],
+            thickness: [thickness, thickness],
             alphaThreshold: HIGHLIGHT_ALPHA_THRESHOLD,
             knockout: false,
             wave: false,
@@ -804,7 +897,7 @@ function createOutlineFilter(color) {
         return filter;
     }
 
-    const alphaOutlineFilter = createAlphaOutlineFilter(colorNumber);
+    const alphaOutlineFilter = createAlphaOutlineFilter(colorNumber, thickness);
     if (alphaOutlineFilter) return alphaOutlineFilter;
 
     const glowOverlayFilter =
@@ -813,7 +906,7 @@ function createOutlineFilter(color) {
     if (glowOverlayFilter?.create) {
         const filter = glowOverlayFilter.create({
             glowColor: colorToRgbArray(colorNumber),
-            distance: getHighlightThickness(),
+            distance: thickness,
             outerStrength: 3,
             innerStrength: 0,
             alpha: 1,
@@ -827,10 +920,10 @@ function createOutlineFilter(color) {
 }
 
 // Instantiate custom GLSL alpha outline filter using available base class.
-function createAlphaOutlineFilter(color) {
+function createAlphaOutlineFilter(color, thickness = getHighlightThickness()) {
     const uniforms = {
         outlineColor: colorToRgbArray(color),
-        thickness: getHighlightThickness(),
+        thickness,
         alphaThreshold: HIGHLIGHT_ALPHA_THRESHOLD,
     };
     const baseFilter =
@@ -840,7 +933,7 @@ function createAlphaOutlineFilter(color) {
 
     try {
         const filter = new baseFilter(undefined, ALPHA_OUTLINE_FRAGMENT_SHADER, uniforms);
-        filter.padding = getHighlightThickness();
+        filter.padding = thickness;
         return filter;
     } catch (_error) {
         return null;
@@ -880,11 +973,12 @@ function clearHighlightContainer(container) {
 
 // Render geometric outline boxes when shader filters are not supported.
 function drawFallbackTokenHighlights(container, token, highlights) {
+    const thickness = getHighlightThickness();
     highlights.forEach((aura, index) => {
         const bounds = token.bounds.clone().pad(index * HIGHLIGHT_RING_SPACING);
         const graphic = new PIXI.Graphics();
 
-        graphic.lineStyle(getHighlightThickness(), colorToNumber(aura.color), 0.9);
+        graphic.lineStyle(thickness, colorToNumber(aura.color), 0.9);
         graphic.drawRoundedRect(
             bounds.x,
             bounds.y,
