@@ -38,6 +38,8 @@ export function getTokenFilterTarget(token) {
 
 // Extract canvas world coordinates along the visible boundary of a token texture.
 export function getTokenAlphaEdgePoints(token) {
+    if (token._mockEdgePoints) return token._mockEdgePoints;
+
     const displayObject = getTokenFilterTarget(token);
     const normalizedPoints = getTextureAlphaEdgePoints(displayObject);
     if (normalizedPoints.length === 0) return [];

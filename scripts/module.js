@@ -146,7 +146,7 @@ export function clearAuraHighlights() {
 }
 
 // Collect all active highlights across all controlled source tokens.
-function collectAuraHighlights(sourceTokens) {
+export function collectAuraHighlights(sourceTokens) {
     const highlights = new Map();
     const pixelsPerUnit = getPixelsPerSceneUnit();
     const tokenCache = new Map();
@@ -163,7 +163,7 @@ function collectAuraHighlights(sourceTokens) {
 // =============================================================================
 
 // Query spatial partition to locate candidate targets within maximum aura range.
-function getCandidateTargets(source, maxRangePixels) {
+export function getCandidateTargets(source, maxRangePixels) {
     const activeCanvas = globalThis.canvas;
     const quadtree = activeCanvas?.tokens?.quadtree;
 
@@ -182,7 +182,7 @@ function getCandidateTargets(source, maxRangePixels) {
 }
 
 // Evaluate aura targets for a single source token.
-function evaluateSourceTokenAuras(source, tokenCache, pixelsPerUnit, highlights) {
+export function evaluateSourceTokenAuras(source, tokenCache, pixelsPerUnit, highlights) {
     const auras = getTokenAuras(source).filter((aura) => aura.enabled);
     if (auras.length === 0) return;
 
@@ -206,7 +206,7 @@ function evaluateSourceTokenAuras(source, tokenCache, pixelsPerUnit, highlights)
 }
 
 // Evaluate a candidate target token against all active source auras.
-function evaluateTargetCandidate(source, target, auras, sourceData, tokenCache, pixelsPerUnit, maxRangePixels2, highlights) {
+export function evaluateTargetCandidate(source, target, auras, sourceData, tokenCache, pixelsPerUnit, maxRangePixels2, highlights) {
     const targetData = getCachedTokenData(target, tokenCache, pixelsPerUnit);
     const dz = Math.abs(sourceData.elevation - targetData.elevation);
     const dz2 = dz * dz;
@@ -236,7 +236,7 @@ function evaluateSingleAura(source, target, aura, sourceData, targetData, dz2, p
 }
 
 // Retrieve or initialize cached geometry and elevation data for a token.
-function getCachedTokenData(token, cache, pixelsPerUnit) {
+export function getCachedTokenData(token, cache, pixelsPerUnit) {
     let data = cache.get(token.id);
     if (data) return data;
 

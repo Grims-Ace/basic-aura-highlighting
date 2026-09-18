@@ -1,0 +1,11 @@
+{
+    "name": "basic_aura_highlighting",
+    "version": "0.2.1",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "test": "node tests/accuracy.test.js && node tests/performance.test.js",
+        "test:accuracy": "node tests/accuracy.test.js",
+        "test:perf": "node tests/performance.test.js"
+    }
+}
