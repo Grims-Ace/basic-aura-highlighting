@@ -1,7 +1,7 @@
 {
   "id": "basic_aura_highlighting",
   "title": "Basic Aura Highlighting",
-  "version": "0.2.1",
+  "version": "0.3",
   "compatibility": {
     "minimum": "13",
     "verified": "13",
