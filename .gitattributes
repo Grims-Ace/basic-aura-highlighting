@@ -1,1 +1,5 @@
 packs/** binary
+
+#ignores for tests
+tests/ export-ignore
+package.json export-ignore
