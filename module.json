@@ -12,8 +12,8 @@
     "canUpload": true
   },
   "url": "https://gitlab.com/Grimsace/basic-aura-highlighting-hJ0GE",
-  "manifest": "https://gitlab.com/Grimsace/basic-aura-highlighting-hJ0GE/-/raw/main/module.json?ref_type=heads",
-  "download": "https://gitlab.com/Grimsace/basic-aura-highlighting-hJ0GE/-/archive/main/basic-aura-highlighting-hJ0GE-main.zip?ref_type=heads",
+  "manifest": "https://gitlab.com/Grimsace/basic-aura-highlighting-hJ0GE/-/raw/latest/module.json?ref_type=tags",
+  "download": "https://gitlab.com/Grimsace/basic-aura-highlighting-hJ0GE/-/archive/latest/basic-aura-highlighting-hJ0GE-latest.zip",
   "esmodules": ["scripts/module.js"],
   "styles": ["styles/module.css"],
   "languages": [
